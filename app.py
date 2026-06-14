@@ -62,51 +62,57 @@ model = load_prediction_model()
 
 
 # [크롤링 기능] 대한적십자사 bldStat 페이지 데이터 수집
+import sys  # 로깅 버퍼 해제를 위해 맨 위에 추가
+
 def crawl_blood_stats():
     url = "https://bloodinfo.net/knrcbs/bi/info/bldStat.do?mi=1047"
     
     chrome_options = Options()
-    chrome_options.add_argument("--headless=new")       # 화면 없는 서버 환경 필수 (최신 문법 적용)
-    chrome_options.add_argument("--no-sandbox")          # 권한 에러 방지 (리눅스 컨테이너 필수)
-    chrome_options.add_argument("--disable-dev-shm-usage") # 메모리 부족으로 인한 크래시 방지
+    chrome_options.add_argument("--headless=new")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--window-size=1920,1080")
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-    # Railway 등 리눅스 환경에서 유연하게 구동되도록 webdriver-manager 서비스 탑재
+
+    # ✨ [핵심 수정] Nixpacks 리눅스 환경의 크롬 표준 설치 경로를 명시적으로 강제 지정
+    if os.path.exists("/usr/bin/chromium"):
+        chrome_options.binary_location = "/usr/bin/chromium"
+    elif os.path.exists("/usr/bin/google-chrome"):
+        chrome_options.binary_location = "/usr/bin/google-chrome"
+
+    driver = None
     try:
-        # Nixpacks가 설치한 크롬 경로와 webdriver-manager가 잡는 드라이버 호환성 매핑
-        driver = webdriver.Chrome(
-            service=Service(ChromeDriverManager().install()), 
-            options=chrome_options
-        )
+        print("💡 [CRAWL] 대한적십자사 크롤링 스레드 구동 시작...", flush=True)
         
-        print("💡 대한적십자사 혈액관리본부 페이지에 접속 중입니다...")
+        # 서비스 객체 생성 최적화
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+        
+        print("💡 [CRAWL] 크롬 브라우저 초기화 성공. 페이지 접속 중...", flush=True)
         driver.get(url)
         
-        WebDriverWait(driver, 12).until(
+        # 테이블 요소를 기다리는 시간을 15초로 연장
+        WebDriverWait(driver, 15).until(
             EC.presence_of_element_located((By.TAG_NAME, "table"))
         )
-        time.sleep(2)
+        time.sleep(3) # 안정적인 동적 데이터 렌더링 대기
         
         html = driver.page_source
         soup = BeautifulSoup(html, 'html.parser')
-        
         tables = soup.find_all('table')
+        
         if not tables:
-            print("❌ 페이지에서 테이블 데이터를 찾을 수 없습니다.")
+            print("❌ [CRAWL] 페이지에서 테이블을 찾을 수 없습니다.", flush=True)
             return None
-        
+            
         target_table = tables[1] 
-        
-        headers = []
-        thead = target_table.find('thead')
-        if thead:
-            headers = [th.get_text(strip=True) for th in thead.find_all('th')]
+        headers = [th.get_text(strip=True) for th in target_table.find('thead').find_all('th')] if target_table.find('thead') else []
         
         rows_data = []
         tbody = target_table.find('tbody')
         if tbody:
-            rows = tbody.find_all('tr')
-            for row in rows:
+            for row in tbody.find_all('tr'):
                 cols = row.find_all(['td', 'th'])
                 cols_text = [col.get_text(strip=True) for col in cols]
                 if cols_text:
@@ -115,16 +121,16 @@ def crawl_blood_stats():
         if not headers and rows_data:
             headers = [f"열_{i}" for i in range(len(rows_data[0]))]
             
-        df = pd.DataFrame(rows_data, columns=headers)
-        return df
+        print(f"✅ [CRAWL] 크롤링 성공! 데이터 로우 수: {len(rows_data)}개", flush=True)
+        return pd.DataFrame(rows_data, columns=headers)
 
     except Exception as e:
-        print(f"❌ 크롤링 중 오류 발생: {e}")
+        # 🔥 [중요] Railway 콘솔에 에러가 즉시 누출되도록 flush=True 강제 적용
+        print(f"❌ [CRAWL ERROR] 크롤링 중 치명적 오류 발생: {str(e)}", file=sys.stderr, flush=True)
         return None
     finally:
-        driver.quit()
-
-
+        if driver:
+            driver.quit()
 # [기능 2] 기상청 Open API를 통한 어제 날씨 정보 수집
 def get_yesterday_weather():
     yesterday = (datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%Y%m%d")
