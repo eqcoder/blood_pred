@@ -259,7 +259,327 @@ def update_dashboard_data_job():
 
 
 # HTML 템플릿 코드 (전송받은 원본 반응형 코드 그대로 유지)
-DASHBOARD_TEMPLATE = """... (작성하신 대시보드 HTML 코드 전체) ..."""
+DASHBOARD_TEMPLATE = """<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>대한적십자사 날씨 기반 헌혈 예측 시스템</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
+        
+        :root {
+            --red-main: #D31125;
+            --red-bg: #FFF5F5;
+            --dark-gray: #2D3748;
+            --light-gray: #F7FAFC;
+            --border: #E2E8F0;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Noto Sans KR', sans-serif; }
+        
+        /* PC 전체화면 레이아웃 최적화를 위한 Flex 기반 높이 고정 구조 */
+        html, body { height: 100%; background-color: var(--light-gray); color: var(--dark-gray); overflow: hidden; }
+        body { display: flex; flex-direction: column; }
+
+        /* 네비게이션 바 */
+        .top-navbar {
+            background-color: #FFFFFF;
+            border-bottom: 2px solid var(--red-main);
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+        }
+
+        .brand { display: flex; align-items: center; gap: 12px; }
+        
+        /* 요청사항: logo.png 크기 조절 및 배치 */
+        .brand-logo {
+            height: 36px;
+            width: auto;
+            object-fit: contain;
+        }
+        
+        .brand-title h1 { font-size: 16px; font-weight: 700; color: var(--red-main); line-height: 1.2; }
+        .brand-title p { font-size: 10px; color: #718096; letter-spacing: 0.5px; }
+
+        /* 메인 컨테이너: PC에서는 내부 스크롤, 화면 비율 사수 */
+        .container { 
+            flex: 1; 
+            max-width: 1600px; 
+            width: 100%;
+            margin: 0 auto; 
+            padding: 20px; 
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            overflow-y: auto; /* PC 대형화면은 고정되나 저해상도 배려용 내장 스크롤 */
+        }
+
+        /* 헤더 구조 */
+        .dashboard-header { 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .dashboard-header h2 { font-size: 20px; font-weight: 700; }
+        .dashboard-header h2 span { color: var(--red-main); font-size: 18px; margin-left: 8px; }
+        .dashboard-header p { font-size: 13px; color: #718096; margin-top: 2px; }
+
+        /* 요약 카드 그리드 */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            flex-shrink: 0;
+        }
+
+        .summary-card {
+            background: #FFFFFF;
+            border-radius: 12px;
+            padding: 16px 20px;
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--red-main);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.01);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .card-header { display: flex; justify-content: space-between; align-items: center; color: #718096; font-size: 13px; }
+        .card-header i { font-size: 15px; color: var(--red-main); }
+        .card-value { font-size: 26px; font-weight: 700; margin-top: 6px; }
+
+        /* PC 버전: 차트와 테이블을 좌우(5:5) 분할하여 화면에 꽉 차게 만듦 */
+        .main-workspace {
+            display: flex;
+            gap: 16px;
+            flex: 1;
+            min-height: 0; /* 자식 요소 크기 오버플로우 방지 핵심 */
+        }
+
+        .workspace-block {
+            background: #FFFFFF;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.01);
+        }
+
+        .section-title { 
+            font-size: 15px; 
+            font-weight: 700; 
+            margin-bottom: 14px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .section-title span { display: flex; align-items: center; gap: 6px; }
+        .section-title i { color: var(--red-main); }
+        
+        /* 차트 캔버스 크기 제어 */
+        .chart-container { position: relative; flex: 1; width: 100%; min-height: 0; }
+
+        /* 테이블 스크롤 최적화 및 순서 전면 개편 */
+        .table-responsive { 
+            width: 100%; 
+            flex: 1;
+            overflow-y: auto; /* 표가 길어지면 블록 내부에서만 스크롤됨 */
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch; 
+            border-radius: 8px; 
+            border: 1px solid var(--border); 
+        }
+        
+        table { width: 100%; border-collapse: collapse; background: #FFFFFF; font-size: 13px; min-width: 650px; }
+        
+        /* 헤더 고정 고도화 디자인 */
+        th { 
+            background: #EDF2F7; 
+            padding: 12px; 
+            text-align: left; 
+            font-weight: 600; 
+            position: sticky; 
+            top: 0; 
+            z-index: 10;
+        }
+        td { padding: 12px; border-top: 1px solid var(--border); }
+        tr:hover { background: var(--red-bg); }
+
+        .link-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            background: var(--red-main);
+            color: white;
+            text-decoration: none;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        .link-btn:hover { background: #B30E1E; }
+
+        /* 📱 초강력 미디어 쿼리: 모바일 해상도(스크린 가로 폭 950px 이하) 최적화 스위칭 */
+        @media (max-width: 950px) {
+            html, body { overflow: auto; height: auto; }
+            .container { padding: 12px; overflow-y: visible; }
+            .summary-grid { grid-template-columns: 1fr; gap: 10px; }
+            .main-workspace { flex-direction: column; height: auto; }
+            .workspace-block { height: 420px; flex-shrink: 0; }
+            .chart-container { height: 320px; }
+            .dashboard-header { flex-direction: column; align-items: flex-start; gap: 6px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="top-navbar">
+        <div class="brand">
+            <img src="/logo.png" alt="대한적십자사 로고" class="brand-logo" onerror="this.style.display='none';">
+            <div class="brand-title">
+                <h1>대한적십자사</h1>
+                <p>BLOOD MANAGEMENT SYSTEM</p>
+            </div>
+        </div>
+        <div style="font-size: 11px; background: var(--red-bg); color: var(--red-main); padding: 4px 10px; border-radius: 20px; font-weight:600; border: 1px solid rgba(211,17,37,0.15);">
+            <i class="fa-solid fa-cloud-sun"></i> 기상청 실시간 동적연동
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="dashboard-header">
+            <div>
+                <h2>헌혈자 수 종합 예측 현황 분석 <span id="target-date-ui"></span></h2>
+                <p>기상청 OpenAPI 데이터 자동 맵핑 및 model.pkl 서빙 결과 비교</p>
+            </div>
+        </div>
+
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="card-header"><span>총 모델 예측치</span><i class="fa-solid fa-brain"></i></div>
+                <div class="card-value" style="color: var(--dark-gray);">{{ total_pred }}명</div>
+            </div>
+            <div class="summary-card">
+                <div class="card-header"><span>실제 확정 데이터 (bldStat)</span><i class="fa-solid fa-users"></i></div>
+                <div class="card-value" style="color: var(--red-main);">{{ total_actual }}명</div>
+            </div>
+            <div class="summary-card">
+                <div class="card-header"><span>전국 평균 오차율</span><i class="fa-solid fa-chart-line"></i></div>
+                <div class="card-value" style="color: #3182CE;">{{ avg_error }}%</div>
+            </div>
+        </div>
+
+        <div class="main-workspace">
+            
+            <div class="workspace-block">
+                <div class="section-title">
+                    <span><i class="fa-solid fa-chart-bar"></i> 지역별 예측치 vs 실제 헌혈자 대조 그래프</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="mobileChart"></canvas>
+                </div>
+            </div>
+
+            <div class="workspace-block">
+                <div class="section-title">
+                    <span><i class="fa-solid fa-database"></i> 지역별 상세 스냅샷 통계</span>
+                    <a href="https://bloodinfo.net/knrcbs/bi/info/bldStat.do?mi=1047" target="_blank" class="link-btn">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i> bldStat 원본 보기
+                    </a>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>지역</th>
+                                <th>실제 데이터</th>
+                                <th>모델 예측</th>
+                                <th>정확도</th>
+                                <th>평균기온</th>
+                                <th>최고/최저</th>
+                                <th>강수량</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in data_list %}
+                            <tr>
+                                <td><strong>{{ row.region }}</strong></td>
+                                <td style="font-weight:600; color: var(--red-main);">{{ row.actual }}명</td>
+                                <td style="font-weight:600;">{{ row.predicted }}명</td>
+                                <td style="color:#38A169; font-weight:600;">{{ row.accuracy }}%</td>
+                                <td>{{ row.avg_temp }}°C</td>
+                                <td style="color:#718096;">{{ row.max_temp }}° / {{ row.min_temp }}°</td>
+                                <td>{{ row.rain }}mm</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // 날짜 표시 자바스크립트 자동화 (어제 기준)
+        const d = new Date();
+        d.setDate(d.getDate() - 1);
+        const dateStr = `(${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 기준)`;
+        document.getElementById('target-date-ui').innerText = dateStr;
+
+        // 파이썬 백엔드 데이터 바인딩
+        const chartData = {{ json_data | safe }};
+        
+        const ctx = document.getElementById('mobileChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: chartData.map(d => d.region),
+                datasets: [
+                    {
+                        label: '모델 예측치',
+                        data: chartData.map(d => d.predicted),
+                        backgroundColor: '#FEB2B2',
+                        hoverBackgroundColor: '#FCA5A5',
+                        borderRadius: 4
+                    },
+                    {
+                        label: '실제 헌혈자',
+                        data: chartData.map(d => d.actual),
+                        backgroundColor: '#D31125',
+                        hoverBackgroundColor: '#B30E1E',
+                        borderRadius: 4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top', labels: { boxWidth: 10, font: { size: 11, family: 'Noto Sans KR' } } }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: '#EDF2F7' }, ticks: { font: { size: 10 } } },
+                    x: { grid: { display: false }, ticks: { font: { size: 11, weight: 'bold' } } }
+                }
+            }
+        });
+    </script>
+</body>
+</html>"""
 
 # ==========================================
 # 🚀 [라우터] 사용자가 들어오면 0초만에 즉시 응답
