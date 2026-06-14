@@ -451,29 +451,29 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
             <img src="/logo.png" alt="대한적십자사 로고" class="brand-logo" onerror="this.style.display='none';">
             <div class="brand-title">
                 <h1>대한적십자사</h1>
-                <p>BLOOD MANAGEMENT SYSTEM</p>
+                <p>BLOOD DONOR PREDICTION SYSTEM</p>
             </div>
         </div>
         <div style="font-size: 11px; background: var(--red-bg); color: var(--red-main); padding: 4px 10px; border-radius: 20px; font-weight:600; border: 1px solid rgba(211,17,37,0.15);">
-            <i class="fa-solid fa-cloud-sun"></i> 기상청 실시간 동적연동
+            <i class="fa-solid fa-cloud-sun"></i> 기상청 API 실시간 동적연동
         </div>
     </div>
 
     <div class="container">
         <div class="dashboard-header">
             <div>
-                <h2>헌혈자 수 종합 예측 현황 분석 <span id="target-date-ui"></span></h2>
-                <p>기상청 OpenAPI 데이터 자동 맵핑 및 model.pkl 서빙 결과 비교</p>
+                <h2>총 헌혈자 수 예측 현황 분석 <span id="target-date-ui"></span></h2>
+                <p>2005년-2025년 월별 헌혈자 데이터 기반 예측</p>
             </div>
         </div>
 
         <div class="summary-grid">
             <div class="summary-card">
-                <div class="card-header"><span>총 모델 예측치</span><i class="fa-solid fa-brain"></i></div>
+                <div class="card-header"><span>예측 헌혈자 수</span><i class="fa-solid fa-brain"></i></div>
                 <div class="card-value" style="color: var(--dark-gray);">{{ total_pred }}명</div>
             </div>
             <div class="summary-card">
-                <div class="card-header"><span>실제 확정 데이터 (bldStat)</span><i class="fa-solid fa-users"></i></div>
+                <div class="card-header"><span>실제 헌혈자 수</span><i class="fa-solid fa-users"></i></div>
                 <div class="card-value" style="color: var(--red-main);">{{ total_actual }}명</div>
             </div>
             <div class="summary-card">
@@ -486,7 +486,7 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
             
             <div class="workspace-block">
                 <div class="section-title">
-                    <span><i class="fa-solid fa-chart-bar"></i> 지역별 예측치 vs 실제 헌혈자 대조 그래프</span>
+                    <span><i class="fa-solid fa-chart-bar"></i> 지역별 예측 vs 실제 헌혈자 대조 그래프</span>
                 </div>
                 <div class="chart-container">
                     <canvas id="mobileChart"></canvas>
@@ -497,7 +497,7 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
                 <div class="section-title">
                     <span><i class="fa-solid fa-database"></i> 지역별 상세 스냅샷 통계</span>
                     <a href="https://bloodinfo.net/knrcbs/bi/info/bldStat.do?mi=1047" target="_blank" class="link-btn">
-                        <i class="fa-solid fa-arrow-up-right-from-square"></i> bldStat 원본 보기
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i> 혈액관리본부 헌혈 통계 바로가기
                     </a>
                 </div>
                 <div class="table-responsive">
@@ -602,7 +602,7 @@ if __name__ == '__main__':
     
     # 2. 백그라운드 스케줄러 세팅 (기존의 500분은 너무 기므로, 데이터가 리프레시되는 하루 주기 고려 180분~360분 혹은 1시간 권장)
     scheduler = BackgroundScheduler()
-    scheduler.add_job(func=update_dashboard_data_job, trigger="interval", minutes=180)
+    scheduler.add_job(func=update_dashboard_data_job, trigger="interval", minutes=360)
     scheduler.start()
     
     # Railway 포트 바인딩 연동 설정
