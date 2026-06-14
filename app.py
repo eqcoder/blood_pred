@@ -64,6 +64,8 @@ model = load_prediction_model()
 # [크롤링 기능] 대한적십자사 bldStat 페이지 데이터 수집
 import sys  # 로깅 버퍼 해제를 위해 맨 위에 추가
 
+import sys
+
 def crawl_blood_stats():
     url = "https://bloodinfo.net/knrcbs/bi/info/bldStat.do?mi=1047"
     
@@ -75,7 +77,7 @@ def crawl_blood_stats():
     chrome_options.add_argument("--window-size=1920,1080")
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
-    # ✨ [핵심 수정] Nixpacks 리눅스 환경의 크롬 표준 설치 경로를 명시적으로 강제 지정
+    # ✨ [Railway 핵심 환경 맞춤] Nixpacks가 설치한 크롬 브라우저 경로 강제 지정
     if os.path.exists("/usr/bin/chromium"):
         chrome_options.binary_location = "/usr/bin/chromium"
     elif os.path.exists("/usr/bin/google-chrome"):
@@ -85,18 +87,21 @@ def crawl_blood_stats():
     try:
         print("💡 [CRAWL] 대한적십자사 크롤링 스레드 구동 시작...", flush=True)
         
-        # 서비스 객체 생성 최적화
-        service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=chrome_options)
+        # ✨ [가장 중요 - Status Code 127 해결] 
+        # 외부에서 드라이버를 새로 받지 않고, Nixpacks가 미리 설치해서 시스템 라이브러리가 완벽히 결합된 
+        # 서버 내부 고유의 'chromedriver' 명령어를 직접 호출합니다.
+        service = Service("chromedriver") 
         
-        print("💡 [CRAWL] 크롬 브라우저 초기화 성공. 페이지 접속 중...", flush=True)
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+        print("✅ [CRAWL] Railway 환경 크롬 브라우저 초기화 성공! 페이지 접속 중...", flush=True)
+        
         driver.get(url)
         
-        # 테이블 요소를 기다리는 시간을 15초로 연장
+        # 동적 테이블 대기 (최대 15초)
         WebDriverWait(driver, 15).until(
             EC.presence_of_element_located((By.TAG_NAME, "table"))
         )
-        time.sleep(3) # 안정적인 동적 데이터 렌더링 대기
+        time.sleep(3)
         
         html = driver.page_source
         soup = BeautifulSoup(html, 'html.parser')
@@ -121,12 +126,11 @@ def crawl_blood_stats():
         if not headers and rows_data:
             headers = [f"열_{i}" for i in range(len(rows_data[0]))]
             
-        print(f"✅ [CRAWL] 크롤링 성공! 데이터 로우 수: {len(rows_data)}개", flush=True)
+        print(f"✅ [CRAWL] 실제 크롤링 데이터 파싱 성공! 로우 수: {len(rows_data)}개", flush=True)
         return pd.DataFrame(rows_data, columns=headers)
 
     except Exception as e:
-        # 🔥 [중요] Railway 콘솔에 에러가 즉시 누출되도록 flush=True 강제 적용
-        print(f"❌ [CRAWL ERROR] 크롤링 중 치명적 오류 발생: {str(e)}", file=sys.stderr, flush=True)
+        print(f"❌ [CRAWL ERROR] 크롤링 중 오류 발생: {str(e)}", file=sys.stderr, flush=True)
         return None
     finally:
         if driver:
