@@ -3,7 +3,7 @@ requests
 beautifulsoup4
 pandas
 numpy
-scikit-learn
+scikit-learn==1.4.2
 apscheduler
 selenium
 webdriver-manager
