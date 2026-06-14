@@ -135,14 +135,8 @@ def get_yesterday_weather():
     
     # 공공데이터 API 연동 실패 시 대시보드 중단을 막기 위한 고품질 하드코딩 백업 데이터 (어제 날씨 샘플)
     fallback_data = [
-        {'region': '서울', 'min_temp': 19.5, 'max_temp': 28.2, 'avg_temp': 24.1, 'rain': 0.0},
-        {'region': '부산', 'min_temp': 20.1, 'max_temp': 26.5, 'avg_temp': 23.5, 'rain': 0.5},
-        {'region': '대구', 'min_temp': 21.3, 'max_temp': 31.0, 'avg_temp': 26.2, 'rain': 0.0},
-        {'region': '인천', 'min_temp': 18.9, 'max_temp': 26.0, 'avg_temp': 22.8, 'rain': 0.0},
-        {'region': '광주', 'min_temp': 19.8, 'max_temp': 29.1, 'avg_temp': 24.5, 'rain': 4.2},
-        {'region': '대전', 'min_temp': 19.2, 'max_temp': 28.7, 'avg_temp': 24.0, 'rain': 0.0},
-        {'region': '울산', 'min_temp': 19.7, 'max_temp': 27.2, 'avg_temp': 23.1, 'rain': 1.0},
-        {'region': '경기', 'min_temp': 18.0, 'max_temp': 29.5, 'avg_temp': 23.9, 'rain': 0.0}
+        {'지역': '서울', '최저기온': 19.5, '최고기온': 28.2, '평균기온': 24.1, '강수량': 0.0},
+    
     ]
     
     # 실제 활용을 위한 API 요청 구조화
