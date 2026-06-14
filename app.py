@@ -69,44 +69,75 @@ def crawl_blood_stats():
     url = "https://bloodinfo.net/knrcbs/bi/info/bldStat.do?mi=1047"
     
     chrome_options = Options()
-    # 🌟 Railway(리눅스 컨테이너 루트 권한) 환경 필수 안정화 옵션 삼총사
+    # Railway/리눅스 환경 필수 안정화 옵션
     chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--disable-extensions")
-    chrome_options.add_argument("--remote-debugging-port=9222") # 포트 충돌 방지
+    chrome_options.add_argument("--remote-debugging-port=9222")
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
-    # 1. Nixpacks가 설치한 Chromium 브라우저 위치 강제 고정
-    # 보통 Nixpacks 환경에서는 /usr/bin/chromium 에 설치됩니다.
-    chrome_bin = "/usr/bin/chromium"
+    # 1. 크롬 브라우저 바이너리 위치 고정 (이미 잘 작동 중)
+    chrome_bin = "/usr/bin/google-chrome"
     if not os.path.exists(chrome_bin):
-        chrome_bin = shutil.which("chromium") or shutil.which("google-chrome") or "/usr/bin/google-chrome"
-    
-    if chrome_bin:
+        chrome_bin = "/usr/bin/chromium"
+    if os.path.exists(chrome_bin):
         chrome_options.binary_location = chrome_bin
         print(f"💡 [CRAWL] 크롬 바이너리 위치 설정 완료: {chrome_bin}", flush=True)
 
-    # 2. 크롬드라이버 경로 지정
-    driver_path = "/usr/bin/chromedriver"
-    if not os.path.exists(driver_path):
-        driver_path = shutil.which("chromedriver") or "chromedriver"
-    print(f"💡 [CRAWL] 크롬드라이버 서비스 경로: {driver_path}", flush=True)
+    # 2. 🔥 [이 부분이 핵심] 크롬드라이버 절대 경로 강제 탐색 🔥
+    # 리눅스 시스템 환경에서 chromedriver가 설치될 수 있는 모든 경로를 리스트로 만듭니다.
+    possible_driver_paths = [
+        "/usr/bin/chromedriver",
+        "/usr/local/bin/chromedriver",
+        "/usr/bin/chromium.chromedriver",
+        "/nix/store/" # Nixpacks 환경에서 패키지가 격리 저장되는 경로 대비
+    ]
+    
+    driver_path = None
+    
+    # 먼저 명시된 표준 경로에 파일이 실제로 존재하는지 체크합니다.
+    for p in possible_driver_paths:
+        if os.path.exists(p) and os.path.isfile(p):
+            driver_path = p
+            break
+            
+    # 만약 위 표준 경로에 없다면, Nixpacks 시스템 전체에서 'chromedriver'라는 이름을 가진 파일을 강제로 찾아냅니다.
+    if not driver_path:
+        system_path = shutil.which("chromedriver")
+        if system_path:
+            driver_path = system_path
+        else:
+            # 최종 수단: Nixpacks 환경의 /nix/store 나 시스템 폴더에서 드라이버 검색 시도
+            print("⚠️ [CRAWL] 표준 경로에 드라이버가 없어 시스템 폴더 탐색을 시도합니다...", flush=True)
+            import subprocess
+            try:
+                # 리눅스 find 명령어로 chromedriver 위치를 강제로 알아냄
+                find_output = subprocess.check_output(["find", "/usr", "/nix", "-name", "chromedriver"], stderr=subprocess.DEVNULL)
+                found_paths = find_output.decode().strip().split('\n')
+                if found_paths and found_paths[0]:
+                    driver_path = found_paths[0]
+            except Exception as find_err:
+                print(f"⚠️ [CRAWL] find 명령어 실패: {find_err}", flush=True)
+
+    # 모든 탐색이 실패했을 때의 최종 기본값 격하 방지
+    if not driver_path:
+        driver_path = "/usr/bin/chromedriver"
+
+    print(f"💡 [CRAWL] 최종 확정된 크롬드라이버 절대 경로: {driver_path}", flush=True)
     
     driver = None
     try:
         print("💡 [CRAWL] 크롬 드라이버 및 브라우저 프로세스 시동 중...", flush=True)
         
-        # 🌟 Selenium 4에서 내장 Selenium Manager의 오작동을 막기 위해 
-        # 서비스 객체를 생성하여 명시적으로 주입합니다.
+        # 🌟 반드시 절대 경로 형식의 Service 객체여야 Selenium Manager가 오작동하지 않습니다.
         service = Service(executable_path=driver_path)
         driver = webdriver.Chrome(service=service, options=chrome_options)
         
         print("✅ [CRAWL] 크롬 브라우저 초기화 및 제어 성공! 대상 사이트 접속합니다.", flush=True)
         driver.get(url)
         
-        # 데이터가 동적으로 로드될 때까지 대기
         WebDriverWait(driver, 15).until(
             EC.presence_of_element_located((By.TAG_NAME, "table"))
         )
@@ -135,7 +166,7 @@ def crawl_blood_stats():
         if not headers and rows_data:
             headers = [f"열_{i}" for i in range(len(rows_data[0]))]
             
-        print(f"✅ [CRAWL] 크롤링 데이터 파싱 성공! 데이터 수: {len(rows_data)}개", flush=True)
+        print(f"✅ [CRAWL] 실제 크롤링 데이터 파싱 성공! 데이터 수: {len(rows_data)}개", flush=True)
         return pd.DataFrame(rows_data, columns=headers)
 
     except Exception as e:
