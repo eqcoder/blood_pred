@@ -4,6 +4,7 @@ import time
 import pickle
 import threading
 import numpy as np
+import shutil
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
@@ -64,8 +65,6 @@ model = load_prediction_model()
 # [크롤링 기능] 대한적십자사 bldStat 페이지 데이터 수집
 import sys  # 로깅 버퍼 해제를 위해 맨 위에 추가
 
-import sys
-
 def crawl_blood_stats():
     url = "https://bloodinfo.net/knrcbs/bi/info/bldStat.do?mi=1047"
     
@@ -77,24 +76,37 @@ def crawl_blood_stats():
     chrome_options.add_argument("--window-size=1920,1080")
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
-    # ✨ [Railway 핵심 환경 맞춤] Nixpacks가 설치한 크롬 브라우저 경로 강제 지정
-    if os.path.exists("/usr/bin/chromium"):
-        chrome_options.binary_location = "/usr/bin/chromium"
-    elif os.path.exists("/usr/bin/google-chrome"):
-        chrome_options.binary_location = "/usr/bin/google-chrome"
+    # 1. 크롬 브라우저 바이너리 절대 경로 탐색 및 지정
+    chrome_bin = None
+    for path in ["/usr/bin/chromium", "/usr/bin/google-chrome", "/usr/bin/chromium-browser"]:
+        if os.path.exists(path):
+            chrome_bin = path
+            break
+            
+    if chrome_bin:
+        chrome_options.binary_location = chrome_bin
+        print(f"💡 [CRAWL] 크롬 바이너리 감지됨: {chrome_bin}", flush=True)
+    else:
+        # 시스템 PATH에서 검색 시도
+        system_chrome = shutil.which("chromium") or shutil.which("google-chrome")
+        if system_chrome:
+            chrome_options.binary_location = system_chrome
+            print(f"💡 [CRAWL] PATH에서 크롬 감지됨: {system_chrome}", flush=True)
 
+    # 2. 크롬 드라이버 절대 경로 탐색 및 서비스 객체 생성
+    # 시스템 PATH 상의 명령어 경로를 직접 추출하거나 표준 리눅스 경로 지정
+    driver_path = shutil.which("chromedriver") or "/usr/bin/chromedriver"
+    print(f"💡 [CRAWL] 사용할 크롬드라이버 경로: {driver_path}", flush=True)
+    
     driver = None
     try:
         print("💡 [CRAWL] 대한적십자사 크롤링 스레드 구동 시작...", flush=True)
         
-        # ✨ [가장 중요 - Status Code 127 해결] 
-        # 외부에서 드라이버를 새로 받지 않고, Nixpacks가 미리 설치해서 시스템 라이브러리가 완벽히 결합된 
-        # 서버 내부 고유의 'chromedriver' 명령어를 직접 호출합니다.
-        service = Service("chromedriver") 
-        
+        # 절대 경로를 Service에 직접 전달하여 'Unable to obtain driver' 에러 방지
+        service = Service(executable_path=driver_path)
         driver = webdriver.Chrome(service=service, options=chrome_options)
-        print("✅ [CRAWL] Railway 환경 크롬 브라우저 초기화 성공! 페이지 접속 중...", flush=True)
         
+        print("✅ [CRAWL] 크롬 브라우저 제어 성공! 페이지 접속 중...", flush=True)
         driver.get(url)
         
         # 동적 테이블 대기 (최대 15초)
@@ -107,8 +119,8 @@ def crawl_blood_stats():
         soup = BeautifulSoup(html, 'html.parser')
         tables = soup.find_all('table')
         
-        if not tables:
-            print("❌ [CRAWL] 페이지에서 테이블을 찾을 수 없습니다.", flush=True)
+        if not tables or len(tables) < 2:
+            print("❌ [CRAWL] 페이지에서 필요한 통계 테이블을 찾을 수 없습니다.", flush=True)
             return None
             
         target_table = tables[1] 
@@ -130,11 +142,14 @@ def crawl_blood_stats():
         return pd.DataFrame(rows_data, columns=headers)
 
     except Exception as e:
-        print(f"❌ [CRAWL ERROR] 크롤링 중 오류 발생: {str(e)}", file=sys.stderr, flush=True)
+        print(f"❌ [CRAWL ERROR] 크롤링 중 최종 오류 발생: {str(e)}", file=sys.stderr, flush=True)
         return None
     finally:
         if driver:
-            driver.quit()
+            try:
+                driver.quit()
+            except:
+                pass
 # [기능 2] 기상청 Open API를 통한 어제 날씨 정보 수집
 def get_yesterday_weather():
     yesterday = (datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%Y%m%d")
@@ -633,14 +648,15 @@ CACHED_DATA = {
 
 # 3. 실제 최초 크롤링 및 API 수집은 '서버 부팅 직후' 별도의 비동기 스레드로 실행하여 
 # 부팅 속도를 0.1초로 단축시킵니다. (Gunicorn이 부팅 지연으로 앱을 강제종료하는 것을 완벽히 방지)
+# 3. 최초 크롤링은 서버 부팅이 '완벽히' 완료된 15초 뒤에 백그라운드에서 실행
 def run_initial_setup_async():
-    time.sleep(5) # 서버가 완전히 켜질 때까지 5초 대기 후 백그라운드에서 크롤링 시작
+    print("⏳ [BOOT] 서버 부팅 안정화를 위해 15초간 대기합니다...", flush=True)
+    time.sleep(15) 
+    print("🚀 [BOOT] 백그라운드 첫 데이터 갱신 작업을 시작합니다.", flush=True)
     update_dashboard_data_job()
 
 threading.Thread(target=run_initial_setup_async, daemon=True).start()
 
-
-# 로컬 PC 테스트용 (gunicorn 배포 시에는 무시됨)
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
