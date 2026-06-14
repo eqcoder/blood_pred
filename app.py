@@ -66,16 +66,19 @@ def crawl_blood_stats():
     url = "https://bloodinfo.net/knrcbs/bi/info/bldStat.do?mi=1047"
     
     chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--headless=new")       # 화면 없는 서버 환경 필수 (최신 문법 적용)
+    chrome_options.add_argument("--no-sandbox")          # 권한 에러 방지 (리눅스 컨테이너 필수)
+    chrome_options.add_argument("--disable-dev-shm-usage") # 메모리 부족으로 인한 크래시 방지
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-
     # Railway 등 리눅스 환경에서 유연하게 구동되도록 webdriver-manager 서비스 탑재
-    driver = webdriver.Chrome(options=chrome_options)
-    
     try:
+        # Nixpacks가 설치한 크롬 경로와 webdriver-manager가 잡는 드라이버 호환성 매핑
+        driver = webdriver.Chrome(
+            service=Service(ChromeDriverManager().install()), 
+            options=chrome_options
+        )
+        
         print("💡 대한적십자사 혈액관리본부 페이지에 접속 중입니다...")
         driver.get(url)
         
