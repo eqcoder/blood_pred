@@ -1,0 +1,10 @@
+Flask
+requests
+beautifulsoup4
+pandas
+numpy
+scikit-learn
+apscheduler
+selenium
+webdriver-manager
+gunicorn
