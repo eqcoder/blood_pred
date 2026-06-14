@@ -69,47 +69,44 @@ def crawl_blood_stats():
     url = "https://bloodinfo.net/knrcbs/bi/info/bldStat.do?mi=1047"
     
     chrome_options = Options()
+    # 🌟 Railway(리눅스 컨테이너 루트 권한) 환경 필수 안정화 옵션 삼총사
     chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--window-size=1920,1080")
+    chrome_options.add_argument("--disable-extensions")
+    chrome_options.add_argument("--remote-debugging-port=9222") # 포트 충돌 방지
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
-    # 1. 크롬 브라우저 바이너리 절대 경로 탐색 및 지정
-    chrome_bin = None
-    for path in ["/usr/bin/chromium", "/usr/bin/google-chrome", "/usr/bin/chromium-browser"]:
-        if os.path.exists(path):
-            chrome_bin = path
-            break
-            
+    # 1. Nixpacks가 설치한 Chromium 브라우저 위치 강제 고정
+    # 보통 Nixpacks 환경에서는 /usr/bin/chromium 에 설치됩니다.
+    chrome_bin = "/usr/bin/chromium"
+    if not os.path.exists(chrome_bin):
+        chrome_bin = shutil.which("chromium") or shutil.which("google-chrome") or "/usr/bin/google-chrome"
+    
     if chrome_bin:
         chrome_options.binary_location = chrome_bin
-        print(f"💡 [CRAWL] 크롬 바이너리 감지됨: {chrome_bin}", flush=True)
-    else:
-        # 시스템 PATH에서 검색 시도
-        system_chrome = shutil.which("chromium") or shutil.which("google-chrome")
-        if system_chrome:
-            chrome_options.binary_location = system_chrome
-            print(f"💡 [CRAWL] PATH에서 크롬 감지됨: {system_chrome}", flush=True)
+        print(f"💡 [CRAWL] 크롬 바이너리 위치 설정 완료: {chrome_bin}", flush=True)
 
-    # 2. 크롬 드라이버 절대 경로 탐색 및 서비스 객체 생성
-    # 시스템 PATH 상의 명령어 경로를 직접 추출하거나 표준 리눅스 경로 지정
-    driver_path = shutil.which("chromedriver") or "/usr/bin/chromedriver"
-    print(f"💡 [CRAWL] 사용할 크롬드라이버 경로: {driver_path}", flush=True)
+    # 2. 크롬드라이버 경로 지정
+    driver_path = "/usr/bin/chromedriver"
+    if not os.path.exists(driver_path):
+        driver_path = shutil.which("chromedriver") or "chromedriver"
+    print(f"💡 [CRAWL] 크롬드라이버 서비스 경로: {driver_path}", flush=True)
     
     driver = None
     try:
-        print("💡 [CRAWL] 대한적십자사 크롤링 스레드 구동 시작...", flush=True)
+        print("💡 [CRAWL] 크롬 드라이버 및 브라우저 프로세스 시동 중...", flush=True)
         
-        # 절대 경로를 Service에 직접 전달하여 'Unable to obtain driver' 에러 방지
+        # 🌟 Selenium 4에서 내장 Selenium Manager의 오작동을 막기 위해 
+        # 서비스 객체를 생성하여 명시적으로 주입합니다.
         service = Service(executable_path=driver_path)
         driver = webdriver.Chrome(service=service, options=chrome_options)
         
-        print("✅ [CRAWL] 크롬 브라우저 제어 성공! 페이지 접속 중...", flush=True)
+        print("✅ [CRAWL] 크롬 브라우저 초기화 및 제어 성공! 대상 사이트 접속합니다.", flush=True)
         driver.get(url)
         
-        # 동적 테이블 대기 (최대 15초)
+        # 데이터가 동적으로 로드될 때까지 대기
         WebDriverWait(driver, 15).until(
             EC.presence_of_element_located((By.TAG_NAME, "table"))
         )
@@ -120,7 +117,7 @@ def crawl_blood_stats():
         tables = soup.find_all('table')
         
         if not tables or len(tables) < 2:
-            print("❌ [CRAWL] 페이지에서 필요한 통계 테이블을 찾을 수 없습니다.", flush=True)
+            print("❌ [CRAWL] 헌혈 통계 테이블을 찾을 수 없습니다.", flush=True)
             return None
             
         target_table = tables[1] 
@@ -138,16 +135,17 @@ def crawl_blood_stats():
         if not headers and rows_data:
             headers = [f"열_{i}" for i in range(len(rows_data[0]))]
             
-        print(f"✅ [CRAWL] 실제 크롤링 데이터 파싱 성공! 로우 수: {len(rows_data)}개", flush=True)
+        print(f"✅ [CRAWL] 크롤링 데이터 파싱 성공! 데이터 수: {len(rows_data)}개", flush=True)
         return pd.DataFrame(rows_data, columns=headers)
 
     except Exception as e:
-        print(f"❌ [CRAWL ERROR] 크롤링 중 최종 오류 발생: {str(e)}", file=sys.stderr, flush=True)
+        print(f"❌ [CRAWL ERROR] 크롤링 실패 상세 원인: {str(e)}", file=sys.stderr, flush=True)
         return None
     finally:
         if driver:
             try:
                 driver.quit()
+                print("💡 [CRAWL] 브라우저 세션을 안전하게 종료했습니다.", flush=True)
             except:
                 pass
 # [기능 2] 기상청 Open API를 통한 어제 날씨 정보 수집
