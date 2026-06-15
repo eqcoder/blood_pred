@@ -605,7 +605,7 @@ def index():
             'accuracy': accuracy_score
         })
         
-    avg_error_pct = round((error_sum / len(df)) * 100, 1)
+    avg_error_pct = abs(round((total_pred - total_actual)/total_actual * 100, 1))
     
     return render_template_string(
         DASHBOARD_TEMPLATE,
