@@ -197,7 +197,7 @@ def get_actual_blood_donors():
     #     return result
     # except:
         # 크롤링 실패 시 사이트 차단을 방지하기 위해 백업용 기존 딕셔너리 리턴
-    return {'서울': 2241, '부산': 566, '충남': 488, '인천': 550, '충북': 154, '전남': 444, '울산': 238, '경기': 544, '전북':191, '경남':417, '경북':440, '강원':198, '제주':120}
+    return {'서울': 1453, '부산': 454, '충남': 664, '인천': 561, '충북': 292, '전남': 512, '울산': 328, '경기': 692, '전북':275, '경남':587, '경북':714, '강원':435, '제주':131}
 
 # 모바일 해상도(Responsive) 최적화 대시보드 뷰 HTML
 DASHBOARD_TEMPLATE = """
@@ -376,13 +376,48 @@ DASHBOARD_TEMPLATE = """
 
         /* 📱 초강력 미디어 쿼리: 모바일 해상도(스크린 가로 폭 950px 이하) 최적화 스위칭 */
         @media (max-width: 950px) {
-            html, body { overflow: auto; height: auto; }
-            .container { padding: 12px; overflow-y: visible; }
-            .summary-grid { grid-template-columns: 1fr; gap: 10px; }
-            .main-workspace { flex-direction: column; height: auto; }
-            .workspace-block { height: 420px; flex-shrink: 0; }
-            .chart-container { height: 320px; }
-            .dashboard-header { flex-direction: column; align-items: flex-start; gap: 6px; }
+            html, body { 
+                overflow: auto !important; 
+                height: auto !important; 
+                min-height: 100vh;
+            }
+            .container { 
+                padding: 12px; 
+                overflow-y: visible !important; 
+                height: auto !important;
+                display: flex;
+                flex-direction: column;
+            }
+            .summary-grid { 
+                grid-template-columns: 1fr; 
+                gap: 10px; 
+            }
+            .main-workspace { 
+                flex-direction: column !important; 
+                height: auto !important; 
+                min-height: 0;
+                flex: none !important; /* 모바일에서 높이 고정 풀기 */
+            }
+            .workspace-block { 
+                height: auto !important; /* 고정 높이 해제 */
+                min-height: 380px;       /* 최소 높이만 보장 */
+                flex-shrink: 0; 
+                display: flex;
+                flex-direction: column;
+            }
+            .chart-container { 
+                height: 300px !important; /* 차트 영역 높이 명시적 지정 */
+                position: relative;
+            }
+            .table-responsive {
+                overflow-y: visible !important; /* 모바일 테이블 자체 세로 스크롤 제거 (바깥 페이지 스크롤 사용) */
+                max-height: none !important;
+            }
+            .dashboard-header { 
+                flex-direction: column; 
+                align-items: flex-start; 
+                gap: 6px; 
+            }
         }
     </style>
 </head>
